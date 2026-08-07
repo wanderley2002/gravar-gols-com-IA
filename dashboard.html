@@ -1,0 +1,362 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>W.A GAMES | Dashboard</title>
+
+    <link href="https://fonts.googleapis.com/css2?family=Rajdhani:wght@600;700&family=Inter:wght@400;600&display=swap" rel="stylesheet">
+
+    <style>
+        :root {
+            --primary: #00f2ff;
+            --accent: #7000ff;
+            --bg: #06070a;
+            --card: rgba(255, 255, 255, 0.03);
+            --success: #00ff88;
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            font-family: 'Inter', sans-serif;
+        }
+
+        body {
+            background: var(--bg);
+            color: white;
+            min-height: 100vh;
+        }
+
+        header {
+            padding: 15px 5%;
+            background: rgba(0,0,0,0.8);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .logo {
+            font-family: 'Rajdhani';
+            font-size: 1.8rem;
+        }
+
+        .logo span {
+            color: var(--primary);
+        }
+
+        .btn-sair {
+            border: 1px solid #ff4b4b;
+            background: transparent;
+            color: #ff4b4b;
+            padding: 6px 15px;
+            cursor: pointer;
+            border-radius: 6px;
+        }
+
+        .container {
+            display: grid;
+            grid-template-columns: 1fr 350px;
+            gap: 20px;
+            padding: 20px 5%;
+        }
+
+        .card {
+            background: var(--card);
+            padding: 20px;
+            border-radius: 12px;
+            border: 1px solid rgba(255,255,255,0.05);
+        }
+
+        .preview {
+            width: 100%;
+            height: 320px;
+            background: #000;
+            border-radius: 10px;
+            overflow: hidden;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            margin: 15px 0;
+        }
+
+        video {
+            width: 100%;
+            height: 100%;
+            object-fit: contain;
+        }
+
+        button {
+            cursor: pointer;
+        }
+
+        .btn {
+            padding: 12px 20px;
+            border: none;
+            border-radius: 10px;
+            margin-top: 10px;
+            font-weight: 600;
+            transition: 0.2s;
+        }
+
+        .btn-file {
+            background: rgba(255,255,255,0.1);
+            color: #fff;
+        }
+
+        .rec {
+            background: #ff4b4b;
+            color: white;
+        }
+
+        .send {
+            background: var(--accent);
+            color: white;
+            width: 100%;
+            margin-top: 15px;
+        }
+
+        #status-msg {
+            margin-top: 10px;
+            color: var(--primary);
+            font-weight: 600;
+        }
+
+        .rank-item {
+            padding: 12px;
+            background: rgba(255,255,255,0.05);
+            margin-bottom: 10px;
+            border-left: 3px solid var(--primary);
+            border-radius: 0 8px 8px 0;
+        }
+
+        .btn-download-link {
+            display: inline-block;
+            margin-top: 10px;
+            padding: 8px 16px;
+            background: var(--success);
+            color: #000;
+            text-decoration: none;
+            font-weight: 600;
+            border-radius: 6px;
+        }
+    </style>
+</head>
+
+<body>
+
+<header>
+    <div class="logo">W.A <span>GAMES</span></div>
+
+    <div>
+        <span id="display-nome">PLAYER</span>
+        <button class="btn-sair" onclick="sair()">SAIR</button>
+    </div>
+</header>
+
+<div class="container">
+
+    <!-- ESQUERDA -->
+    <div class="card">
+        <h2>Envio de Partida</h2>
+
+        <div class="preview">
+            <video id="preview-media" controls></video>
+        </div>
+
+        <input type="file" id="file" hidden accept="video/*" onchange="carregarArquivo(this)">
+
+        <button class="btn btn-file" onclick="document.getElementById('file').click()">
+            📂 Escolher vídeo
+        </button>
+
+        <button class="btn rec" onclick="gerenciarGravacao()" id="btn-rec">
+            🔴 GRAVAR TELA
+        </button>
+
+        <button class="btn send" onclick="enviarParaIA()" id="btn-ia">
+            🚀 ENVIAR PARA IA
+        </button>
+
+        <div id="status-msg"></div>
+
+        <div id="container-replay" style="display:none; margin-top:25px; border-top: 1px solid rgba(255,255,255,0.1); padding-top: 15px;">
+            <h3>Replay Processado</h3>
+            <p id="nome-jogador-ia" style="margin: 10px 0; color: #ccc;"></p>
+
+            <div class="preview" style="height: 250px;">
+                <video id="player-replay" controls></video>
+            </div>
+
+            <a id="btn-download" class="btn-download-link" download="replay.webm" target="_blank">📥 Baixar vídeo</a>
+        </div>
+    </div>
+
+    <!-- DIREITA -->
+    <div class="card">
+        <h2>Ranking</h2>
+        <div id="lista-ranking" style="margin-top: 15px;"></div>
+    </div>
+
+</div>
+
+<script>
+const API = "http://localhost:3000";
+
+let recorder;
+let chunks = [];
+let arquivoParaEnviar = null;
+
+// Anti tela branca
+window.onerror = function (msg) {
+    console.log("JS Error:", msg);
+};
+
+const token = localStorage.getItem("token");
+
+if (!token) {
+    window.location.href = "index.html";
+} else {
+    document.getElementById("display-nome").innerText =
+        (localStorage.getItem("nomeUsuario") || "USER").toUpperCase();
+}
+
+function getAuthHeaders() {
+    return {
+        "Authorization": `Bearer ${localStorage.getItem("token")}`
+    };
+}
+
+function carregarArquivo(input) {
+    const file = input.files[0];
+    if (!file) return;
+
+    arquivoParaEnviar = file;
+    const video = document.getElementById("preview-media");
+    video.src = URL.createObjectURL(file);
+}
+
+async function gerenciarGravacao() {
+    const btn = document.getElementById("btn-rec");
+
+    if (btn.innerText.includes("GRAVAR")) {
+        try {
+            const stream = await navigator.mediaDevices.getDisplayMedia({ video: true });
+
+            recorder = new MediaRecorder(stream);
+            chunks = [];
+
+            recorder.ondataavailable = e => {
+                if (e.data.size > 0) chunks.push(e.data);
+            };
+
+            recorder.onstop = () => {
+                const blob = new Blob(chunks, { type: "video/webm" });
+                arquivoParaEnviar = new File([blob], "gravacao.webm", { type: "video/webm" });
+
+                document.getElementById("preview-media").src = URL.createObjectURL(blob);
+                stream.getTracks().forEach(t => t.stop());
+            };
+
+            recorder.start();
+            btn.innerText = "⏹ PARAR";
+        } catch (err) {
+            alert("Não foi possível iniciar a gravação de tela.");
+        }
+    } else {
+        recorder.stop();
+        btn.innerText = "🔴 GRAVAR TELA";
+    }
+}
+
+async function enviarParaIA() {
+    if (!arquivoParaEnviar) return alert("Escolha ou grave um vídeo primeiro!");
+
+    document.getElementById("status-msg").innerText = "Processando vídeo...";
+
+    const formData = new FormData();
+    formData.append("video", arquivoParaEnviar);
+
+    try {
+        const res = await fetch(`${API}/enviar-gol`, {
+            method: "POST",
+            headers: {
+                "Authorization": `Bearer ${localStorage.getItem("token")}`
+            },
+            body: formData
+        });
+
+        if (!res.ok) throw new Error("Erro na requisição.");
+
+        const data = await res.json();
+        document.getElementById("status-msg").innerText = "Processado com sucesso!";
+
+        const jogador = data.jogador || "Artilheiro WA";
+        document.getElementById("nome-jogador-ia").innerText = `Gol detectado de: ${jogador}`;
+
+        let url = data.urlVideo || data.urlVideoCortado;
+
+        if (url && !url.startsWith("http")) {
+            if (!url.startsWith("/")) url = "/" + url;
+            url = `${API}${url}`;
+        }
+
+        document.getElementById("container-replay").style.display = "block";
+        const playerReplay = document.getElementById("player-replay");
+        
+        playerReplay.src = url;
+        playerReplay.load();
+        
+        const btnDownload = document.getElementById("btn-download");
+        btnDownload.href = url;
+        btnDownload.download = "replay.mp4";
+
+        carregarRanking();
+    } catch (error) {
+        console.error(error);
+        document.getElementById("status-msg").innerText = "Erro ao enviar vídeo (Servidor offline?).";
+    }
+}
+
+async function carregarRanking() {
+    try {
+        const res = await fetch(`${API}/ranking`, {
+            headers: getAuthHeaders()
+        });
+
+        if (!res.ok) {
+            throw new Error('Falha ao carregar ranking');
+        }
+
+        const data = await res.json();
+
+        const lista = document.getElementById("lista-ranking");
+        lista.innerHTML = "";
+
+        data.forEach((p, i) => {
+            lista.innerHTML += `
+                <div class="rank-item">
+                    ${i+1}º ${p.nome_jogador} - ${p.gols} gols
+                </div>
+            `;
+        });
+    } catch (err) {
+        // Mock visual para quando o backend estiver off
+        document.getElementById("lista-ranking").innerHTML = `
+            <div class="rank-item">1º Player 1 - 10 gols</div>
+            <div class="rank-item">2º Player 2 - 5 gols</div>
+        `;
+    }
+}
+
+function sair() {
+    localStorage.clear();
+    window.location.href = "index.html";
+}
+
+carregarRanking();
+</script>
+
+</body>
+</html>

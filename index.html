@@ -1,0 +1,261 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>W.A GAMES | Login</title>
+
+    <link href="https://fonts.googleapis.com/css2?family=Rajdhani:wght@600;700&family=Inter:wght@400;500&display=swap" rel="stylesheet">
+
+    <style>
+        :root { --primary: #00f2ff; --bg: #0a0b10; }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            font-family: 'Inter', sans-serif;
+        }
+
+        body {
+            background: radial-gradient(circle at top right, #1a1b2e, var(--bg));
+            color: white;
+            height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .auth-card {
+            background: rgba(255, 255, 255, 0.05);
+            backdrop-filter: blur(15px);
+            padding: 40px;
+            border-radius: 20px;
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            width: 100%;
+            max-width: 400px;
+            box-shadow: 0 20px 40px rgba(0,0,0,0.4);
+        }
+
+        .logo {
+            font-family: 'Rajdhani';
+            font-size: 2.2rem;
+            text-align: center;
+            margin-bottom: 30px;
+        }
+
+        .logo span { color: var(--primary); }
+
+        .tabs {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 25px;
+            background: rgba(0,0,0,0.2);
+            padding: 5px;
+            border-radius: 10px;
+        }
+
+        .tab {
+            flex: 1;
+            padding: 10px;
+            text-align: center;
+            cursor: pointer;
+            border-radius: 8px;
+            transition: 0.3s;
+            font-size: 0.9rem;
+        }
+
+        .tab.active {
+            background: var(--primary);
+            color: #000;
+            font-weight: bold;
+        }
+
+        .input-group { margin-bottom: 15px; }
+
+        label {
+            display: block;
+            font-size: 0.75rem;
+            margin-bottom: 5px;
+            opacity: 0.7;
+        }
+
+        input {
+            width: 100%;
+            padding: 12px;
+            background: rgba(0,0,0,0.3);
+            border: 1px solid rgba(255,255,255,0.1);
+            border-radius: 8px;
+            color: white;
+            outline: none;
+        }
+
+        input:focus { border-color: var(--primary); }
+
+        .btn {
+            width: 100%;
+            padding: 14px;
+            background: var(--primary);
+            color: #000;
+            border: none;
+            border-radius: 8px;
+            font-weight: 700;
+            cursor: pointer;
+            margin-top: 10px;
+        }
+
+        .hidden { display: none; }
+
+        #msg {
+            text-align: center;
+            font-size: 0.8rem;
+            margin-top: 15px;
+            min-height: 18px;
+        }
+    </style>
+</head>
+
+<body>
+
+<div class="auth-card">
+
+    <div class="logo">W.A <span>GAMES</span></div>
+
+    <div class="tabs">
+        <div id="t-login" class="tab active" onclick="switchTab('login')">LOGIN</div>
+        <div id="t-cadastro" class="tab" onclick="switchTab('cadastro')">CADASTRO</div>
+    </div>
+
+    <!-- LOGIN -->
+    <div id="box-login">
+        <div class="input-group">
+            <label>E-MAIL</label>
+            <input type="email" id="l-email" placeholder="seu@email.com">
+        </div>
+
+        <div class="input-group">
+            <label>SENHA</label>
+            <input type="password" id="l-senha" placeholder="••••••••" onkeydown="if(event.key==='Enter') login()">
+        </div>
+
+        <button class="btn" onclick="login()">ENTRAR NA ARENA</button>
+    </div>
+
+    <!-- CADASTRO -->
+    <div id="box-cadastro" class="hidden">
+        <div class="input-group">
+            <label>NOME</label>
+            <input type="text" id="c-nome">
+        </div>
+
+        <div class="input-group">
+            <label>E-MAIL</label>
+            <input type="email" id="c-email">
+        </div>
+
+        <div class="input-group">
+            <label>SENHA</label>
+            <input type="password" id="c-senha" onkeydown="if(event.key==='Enter') cadastrar()">
+        </div>
+
+        <button class="btn" onclick="cadastrar()">CRIAR CONTA</button>
+    </div>
+
+    <div id="msg"></div>
+</div>
+
+<script>
+    // 🔥 SEPARAÇÕES CORRETAS
+    const AUTH_API = "http://localhost:3000";  // login / usuários
+    const IA_API   = "http://localhost:5000";  // sua IA (futuro)
+
+    function setMsg(text, color) {
+        const msg = document.getElementById("msg");
+        msg.innerText = text;
+        msg.style.color = color;
+    }
+
+    function switchTab(type) {
+        document.getElementById('box-login').classList.toggle('hidden', type === 'cadastro');
+        document.getElementById('box-cadastro').classList.toggle('hidden', type === 'login');
+
+        document.getElementById('t-login').classList.toggle('active', type === 'login');
+        document.getElementById('t-cadastro').classList.toggle('active', type === 'cadastro');
+
+        setMsg("", "#ff4b4b");
+    }
+
+    async function login() {
+        const email = document.getElementById('l-email').value;
+        const senha = document.getElementById('l-senha').value;
+
+        if (!email || !senha) {
+            return setMsg("Preencha todos os campos.", "#ff4b4b");
+        }
+
+        try {
+            setMsg("Entrando...", "#00f2ff");
+
+            const res = await fetch(`${AUTH_API}/login`, {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ email, senha })
+            });
+
+            const data = await res.json().catch(() => ({}));
+
+            if (!res.ok) {
+                return setMsg(data.mensagem || "Erro ao logar.", "#ff4b4b");
+            }
+
+            localStorage.setItem("token", data.token || "");
+            localStorage.setItem("nomeUsuario", data.nome || "");
+            localStorage.setItem("usuarioId", data.id || "");
+
+            setMsg("Login ok! entrando...", "#00ff88");
+
+            setTimeout(() => {
+                window.location.href = "dashboard.html";
+            }, 800);
+
+        } catch (err) {
+            setMsg("Servidor offline.", "#ff4b4b");
+        }
+    }
+
+    async function cadastrar() {
+        const nome = document.getElementById('c-nome').value;
+        const email = document.getElementById('c-email').value;
+        const senha = document.getElementById('c-senha').value;
+
+        if (!nome || !email || !senha) {
+            return setMsg("Preencha todos os campos.", "#ff4b4b");
+        }
+
+        try {
+            const res = await fetch(`${AUTH_API}/usuarios`, {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ nome, email, senha })
+            });
+
+            const data = await res.json().catch(() => ({}));
+
+            if (!res.ok) {
+                return setMsg(data.mensagem || "Erro ao cadastrar.", "#ff4b4b");
+            }
+
+            setMsg("Conta criada!", "#00ff88");
+
+            setTimeout(() => {
+                switchTab("login");
+            }, 1200);
+
+        } catch (err) {
+            setMsg("Erro de conexão.", "#ff4b4b");
+        }
+    }
+</script>
+
+</body>
+</html>

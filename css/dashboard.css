@@ -1,0 +1,227 @@
+:root {
+    --primary: #00f2ff;
+    --accent: #7000ff;
+    --bg: #06070a;
+    --card: rgba(255, 255, 255, 0.03);
+    --success: #00ff88;
+}
+
+
+/* ================================
+   CONFIGURAÇÃO GERAL
+================================ */
+
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+    font-family: 'Inter', sans-serif;
+}
+
+
+/* ================================
+   CORPO
+================================ */
+
+body {
+    background: var(--bg);
+
+    color: white;
+
+    min-height: 100vh;
+}
+
+
+/* ================================
+   CABEÇALHO
+================================ */
+
+header {
+    padding: 15px 5%;
+
+    background: rgba(0, 0, 0, 0.8);
+
+    display: flex;
+
+    justify-content: space-between;
+
+    align-items: center;
+}
+
+
+/* ================================
+   LOGO
+================================ */
+
+.logo {
+    font-family: 'Rajdhani';
+
+    font-size: 1.8rem;
+}
+
+
+.logo span {
+    color: var(--primary);
+}
+
+
+/* ================================
+   BOTÃO SAIR
+================================ */
+
+.btn-sair {
+    border: 1px solid #ff4b4b;
+
+    background: transparent;
+
+    color: #ff4b4b;
+
+    padding: 6px 15px;
+
+    cursor: pointer;
+
+    border-radius: 6px;
+
+    transition: 0.3s;
+}
+
+
+.btn-sair:hover {
+    background: #ff4b4b;
+
+    color: white;
+}
+
+
+/* ================================
+   CONTAINER PRINCIPAL
+================================ */
+
+.container {
+    display: grid;
+
+    grid-template-columns:
+        1fr 350px;
+
+    gap: 20px;
+
+    padding: 20px 5%;
+}
+
+
+/* ================================
+   CARDS
+================================ */
+
+.card {
+    background: var(--card);
+
+    padding: 20px;
+
+    border-radius: 12px;
+}
+
+
+/* ================================
+   PREVIEW DO VÍDEO
+================================ */
+
+.preview {
+    width: 100%;
+
+    height: 300px;
+
+    background: #000;
+
+    border-radius: 10px;
+
+    overflow: hidden;
+
+    display: flex;
+
+    justify-content: center;
+
+    align-items: center;
+}
+
+
+video {
+    width: 100%;
+
+    height: 100%;
+
+    object-fit: contain;
+}
+
+
+/* ================================
+   BOTÕES
+================================ */
+
+button {
+    cursor: pointer;
+}
+
+
+.btn {
+    padding: 12px;
+
+    border: none;
+
+    border-radius: 10px;
+
+    margin-top: 10px;
+}
+
+
+.rec {
+    background: red;
+
+    color: white;
+}
+
+
+.send {
+    background: var(--accent);
+
+    color: white;
+
+    width: 100%;
+
+    transition: 0.3s;
+}
+
+
+.send:hover {
+    background: #5b00d6;
+}
+
+
+/* ================================
+   MENSAGEM DE STATUS
+================================ */
+
+#status-msg {
+    margin-top: 10px;
+
+    color: var(--primary);
+}
+
+
+/* ================================
+   RANKING
+================================ */
+
+.rank-item {
+    padding: 10px;
+
+    background:
+        rgba(255, 255, 255, 0.05);
+
+    margin-bottom: 10px;
+
+    border-left:
+        3px solid var(--primary);
+
+    border-radius: 5px;
+}
