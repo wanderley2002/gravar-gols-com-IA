@@ -1,159 +1,207 @@
-# projeto/detectores.py
+"""
+=================================================================
+ W.A GAMES — DETECTOR DE PLACAR (eFootball)
+-----------------------------------------------------------------
+Le o marcador do eFootball usando EasyOCR. Em vez de assumir uma
+unica posicao fixa na tela, testa varias regioes candidatas nos
+primeiros frames do video e calibra qual delas realmente contem
+o placar (isso resolve o problema de "0 gols" quando o HUD nao
+esta exatamente onde o codigo antigo assumia).
+=================================================================
+"""
+
+import re
+import sys
 
 import cv2
 import easyocr
-import re
-import numpy as np
+
+sys.stdout.reconfigure(encoding="utf-8", errors="replace")
+sys.stderr.reconfigure(encoding="utf-8", errors="replace")
 
 
 class DetectorPlacar:
+    REGIOES_CANDIDATAS = [
+        (0.00, 0.14, 0.36, 0.64),  # topo-centro: caixa do placar (principal)
+        (0.00, 0.16, 0.22, 0.78),  # topo-centro amplo (HUD variante)
+        (0.00, 0.12, 0.58, 0.97),  # topo-direita
+        (0.16, 0.36, 0.55, 0.98),  # direita media (posicao de replays)
+    ]
+
+    DIGITOS = "0123456789:-"
+
+    SUBSTITUICOES = [
+        ("O", "0"),
+        ("o", "0"),
+        ("Q", "0"),
+        ("D", "0"),
+        ("I", "1"),
+        ("l", "1"),
+        ("i", "1"),
+        ("|", "1"),
+        ("Z", "2"),
+        ("S", "5"),
+        ("s", "5"),
+        ("G", "6"),
+        ("B", "8"),
+    ]
+
+    PADROES_PLACAR = [
+        r"(\d+)\s*[-x:]\s*(\d+)",  # 0-0, 0x0, 0:0
+        r"(\d+)\s+(\d+)",  # 0 0
+    ]
 
     def __init__(self):
         print("🤖 Inicializando OCR...")
 
         try:
-            self.reader = easyocr.Reader(['pt', 'en'], gpu=True)
+            self.reader = easyocr.Reader(["pt", "en"], gpu=True)
             print("✅ OCR usando GPU")
         except Exception as erro:
-            print("⚠️ GPU não disponível:", erro)
-            self.reader = easyocr.Reader(['pt', 'en'], gpu=False)
+            print("⚠️ GPU nao disponivel:", erro)
+            self.reader = easyocr.Reader(["pt", "en"], gpu=False)
             print("✅ OCR usando CPU")
 
-        # Guarda últimos placares encontrados
         self.historico = []
+        self.regiao_calibrada = None
+
+    def calibrar_regiao(self, frames_amostra):
+        print("\n🔎 Calibrando regiao do placar...")
+
+        melhor_regiao = None
+        melhor_acertos = 0
+
+        for regiao in self.REGIOES_CANDIDATAS:
+            acertos = 0
+
+            for frame in frames_amostra:
+                if self._ler_regiao(frame, regiao) is not None:
+                    acertos += 1
+
+            print(
+                f"   Regiao {regiao} -> {acertos}/{len(frames_amostra)} leituras validas"
+            )
+
+            if acertos > melhor_acertos:
+                melhor_acertos = acertos
+                melhor_regiao = regiao
+
+        if melhor_regiao is not None and melhor_acertos > 0:
+            self.regiao_calibrada = melhor_regiao
+            print(f"✅ Regiao calibrada: {melhor_regiao} ({melhor_acertos} acertos)")
+        else:
+            self.regiao_calibrada = None
+            print("⚠️ Nao foi possivel calibrar uma regiao confiavel.")
+            print("   A analise vai continuar testando todas as regioes candidatas,")
+            print("   mas isso e mais lento e menos confiavel. Verifique se o placar")
+            print("   do eFootball esta realmente visivel no video.")
 
     def extrair_placar(self, frame):
-        """
-        Detecta o placar do eFootball.
-        O placar fica no TOPO CENTRAL da tela, com formato "0 - 0" ou "0x0".
-        O relógio fica logo abaixo do placar.
-        """
-        altura, largura, _ = frame.shape
+        # Sin calibracion prueba solo la region principal (mucho mas rapido en
+        # CPU): revisar las 4 regiones en cada frame seria demasiado lento en
+        # partidas largas cuando el OCR no logra calibrar.
+        regioes_a_testar = (
+            [self.regiao_calibrada]
+            if self.regiao_calibrada
+            else self.REGIOES_CANDIDATAS[:1]
+        )
 
-        # Região do placar: topo central, bem no meio
-        # O placar do eFootball fica no centro superior
-        regioes = [
-            # Região principal: topo central (mais estreita para pegar só o placar)
-            (
-                int(altura * 0.02),
-                int(altura * 0.08),
-                int(largura * 0.40),
-                int(largura * 0.60)
-            ),
-            # Região alternativa: topo central mais ampla
-            (
-                int(altura * 0.01),
-                int(altura * 0.10),
-                int(largura * 0.35),
-                int(largura * 0.65)
-            ),
-        ]
-
-        melhor_placar = None
-
-        for ymin, ymax, xmin, xmax in regioes:
-            recorte = frame[ymin:ymax, xmin:xmax]
-
-            if recorte.size == 0:
-                continue
-
-            # Aumenta para facilitar OCR
-            imagem = cv2.resize(
-                recorte,
-                None,
-                fx=4,
-                fy=4,
-                interpolation=cv2.INTER_CUBIC
-            )
-
-            cinza = cv2.cvtColor(imagem, cv2.COLOR_BGR2GRAY)
-
-            # Melhora contraste
-            _, imagem_processada = cv2.threshold(
-                cinza,
-                0,
-                255,
-                cv2.THRESH_BINARY + cv2.THRESH_OTSU
-            )
-
-            try:
-                resultado = self.reader.readtext(
-                    imagem_processada,
-                    detail=1,
-                    paragraph=False
-                )
-            except Exception as erro:
-                print("Erro OCR:", erro)
-                continue
-
-            # Junta o texto e substitui letras que parecem números
-            texto = ""
-            for item in resultado:
-                texto += item[1] + " "
-
-            # Substituições comuns do OCR
-            texto = texto.replace("O", "0")
-            texto = texto.replace("o", "0")
-            texto = texto.replace("I", "1")
-            texto = texto.replace("l", "1")
-            texto = texto.replace("S", "5")
-            texto = texto.replace("B", "8")
-
-            # Procura padrões de placar: "0 - 0", "0x0", "0:0", "0 0"
-            # O placar tem DOIS números separados por um separador
-            padroes = [
-                r'(\d+)\s*[-x:]\s*(\d+)',  # 0-0, 0x0, 0:0
-                r'(\d+)\s+(\d+)',           # 0 0
-            ]
-
-            for padrao in padroes:
-                match = re.search(padrao, texto)
-                if match:
-                    num1 = int(match.group(1))
-                    num2 = int(match.group(2))
-
-                    # Placar válido: números entre 0 e 20
-                    if 0 <= num1 <= 20 and 0 <= num2 <= 20:
-                        placar = (num1, num2)
-                        melhor_placar = placar
-                        break
-
-            if melhor_placar:
+        placar = None
+        for regiao in regioes_a_testar:
+            placar = self._ler_regiao(frame, regiao)
+            if placar:
                 break
 
-        if melhor_placar:
-            self.historico.append(melhor_placar)
-
-            # Mantém somente últimos 10
+        if placar:
+            self.historico.append(placar)
             if len(self.historico) > 10:
                 self.historico.pop(0)
+            print(f"📊 Placar detectado: {placar[0]}x{placar[1]}")
 
-            print(f"📊 Placar detectado: {melhor_placar[0]}x{melhor_placar[1]}")
+        return placar
 
-        return melhor_placar
+    def _ler_regiao(self, frame, regiao):
+        altura, largura, _ = frame.shape
+        ymin_f, ymax_f, xmin_f, xmax_f = regiao
 
-    def confirmou_mudanca(self):
-        """
-        Verifica se o placar realmente mudou.
-        Usa o histórico para confirmar que a mudança é real.
-        """
-        if len(self.historico) < 3:
-            return False
+        ymin, ymax = int(altura * ymin_f), int(altura * ymax_f)
+        xmin, xmax = int(largura * xmin_f), int(largura * xmax_f)
 
-        ultimo = self.historico[-1]
-        anteriores = self.historico[-3:-1]
+        recorte = frame[ymin:ymax, xmin:xmax]
+        if recorte.size == 0:
+            return None
 
-        # O placar NUNCA pode diminuir.
-        # Se o último é maior que os anteriores, é gol.
-        for placar in anteriores:
-            if placar is None:
-                continue
+        # Amplia bastante: las grabaciones llegan en 848x382 y los digitos del
+        # placar quedan minusculos. Con ~4-6x el texto pequeno se vuelve legible.
+        escala = max(4.0, 160.0 / recorte.shape[0])
+        imagem = cv2.resize(
+            recorte, None, fx=escala, fy=escala, interpolation=cv2.INTER_CUBIC
+        )
 
-            # Verifica se o último placar é maior que o anterior
-            if (ultimo[0] > placar[0] or ultimo[1] > placar[1]):
-                # Confirma que NÃO é um erro de leitura
-                # (o placar não pode ter números menores que o anterior)
-                if (ultimo[0] >= placar[0] and ultimo[1] >= placar[1]):
-                    return True
+        # Limita el ancho para que CRAFT (EasyOCR) no se pierda en imagenes gigantes
+        if imagem.shape[1] > 1800:
+            fator = 1800.0 / imagem.shape[1]
+            imagem = cv2.resize(imagem, (1800, int(imagem.shape[0] * fator)))
 
-        return False
+        cinza = cv2.cvtColor(imagem, cv2.COLOR_BGR2GRAY)
+
+        _, normal = cv2.threshold(cinza, 0, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU)
+        _, invertida = cv2.threshold(
+            cinza, 0, 255, cv2.THRESH_BINARY_INV + cv2.THRESH_OTSU
+        )
+
+        for variante in (normal, invertida):
+            # 1) Primero intenta OCR restringido a digitos (mucho mas fiable
+            #    en texto pequeno y evita leer nombres de equipos por error).
+            placar = self._ocr_e_extrair_digitos(variante)
+            if placar:
+                return placar
+
+            # 2) Respaldo: OCR general (lee placares como "0 - 0" con letras).
+            placar = self._ocr_e_extrair(variante)
+            if placar:
+                return placar
+
+        return None
+
+    def _ocr_e_extrair_digitos(self, imagem_processada):
+        try:
+            resultado = self.reader.readtext(
+                imagem_processada,
+                detail=1,
+                paragraph=False,
+                allowlist=self.DIGITOS,
+                text_threshold=0.5,
+            )
+        except Exception as erro:
+            print("Erro OCR digitos:", erro)
+            return None
+
+        texto = " ".join(item[1] for item in resultado)
+        return self._parsear_placar(texto)
+
+    def _ocr_e_extrair(self, imagem_processada):
+        try:
+            resultado = self.reader.readtext(
+                imagem_processada, detail=1, paragraph=False
+            )
+        except Exception as erro:
+            print("Erro OCR:", erro)
+            return None
+
+        texto = " ".join(item[1] for item in resultado)
+
+        for letra, numero in self.SUBSTITUICOES:
+            texto = texto.replace(letra, numero)
+
+        return self._parsear_placar(texto)
+
+    def _parsear_placar(self, texto):
+        for padrao in self.PADROES_PLACAR:
+            match = re.search(padrao, texto)
+            if match:
+                num1, num2 = int(match.group(1)), int(match.group(2))
+                if 0 <= num1 <= 20 and 0 <= num2 <= 20:
+                    return (num1, num2)
+
+        return None

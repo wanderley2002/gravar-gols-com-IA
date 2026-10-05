@@ -189,7 +189,9 @@
                 <video id="player-replay" controls></video>
             </div>
 
-            <a id="btn-download" class="btn-download-link" download="replay.webm" target="_blank">📥 Baixar vídeo</a>
+            <a id="btn-download" class="btn-download-link" download="highlights.mp4" target="_blank">📥 Baixar vídeo</a>
+
+            <ul id="lista-clipes" style="margin-top: 10px; list-style: none; font-size: 0.85rem;"></ul>
         </div>
     </div>
 
@@ -244,7 +246,12 @@ async function gerenciarGravacao() {
         try {
             const stream = await navigator.mediaDevices.getDisplayMedia({ video: true });
 
-            recorder = new MediaRecorder(stream);
+            const RecorderClasse = window.MediaRecorder || null;
+            if (!RecorderClasse) {
+                throw new Error("MediaRecorder no disponible en este navegador.");
+            }
+
+            recorder = new RecorderClasse(stream);
             chunks = [];
 
             recorder.ondataavailable = e => {
@@ -290,12 +297,20 @@ async function enviarParaIA() {
         if (!res.ok) throw new Error("Erro na requisição.");
 
         const data = await res.json();
-        document.getElementById("status-msg").innerText = "Processado com sucesso!";
+        document.getElementById("status-msg").innerText = data.mensagem || "Processado com sucesso!";
 
         const jogador = data.jogador || "Artilheiro WA";
-        document.getElementById("nome-jogador-ia").innerText = `Gol detectado de: ${jogador}`;
+        if (data.totalGols > 0) {
+            document.getElementById("nome-jogador-ia").innerText =
+                `Gol detectado de: ${jogador} (${data.totalGols} gol${data.totalGols > 1 ? "s" : ""})`;
+        } else {
+            document.getElementById("nome-jogador-ia").innerText =
+                "Nenhum gol detectado neste video.";
+        }
 
-        let url = data.urlVideo || data.urlVideoCortado;
+        // Prefere o vídeo longo (highlights) quando existe:
+        // ele reúne todos os gols em um único arquivo.
+        let url = data.urlVideoHighlights || data.urlVideo || data.urlVideoCortado;
 
         if (url && !url.startsWith("http")) {
             if (!url.startsWith("/")) url = "/" + url;
@@ -310,7 +325,23 @@ async function enviarParaIA() {
         
         const btnDownload = document.getElementById("btn-download");
         btnDownload.href = url;
-        btnDownload.download = "replay.mp4";
+        btnDownload.download = "highlights.mp4";
+
+        // Lista os lances individuais (se houver mais de um).
+        const listaClipes = document.getElementById("lista-clipes");
+        if (listaClipes && data.clipes && data.clipes.length > 1) {
+            listaClipes.innerHTML = data.clipes
+                .filter(c => c.segundo !== null && c.segundo !== undefined)
+                .map((c, i) => {
+                    let u = c.url;
+                    if (u && !u.startsWith("http")) {
+                        if (!u.startsWith("/")) u = "/" + u;
+                        u = `${API}${u}`;
+                    }
+                    return `<li><a href="${u}" target="_blank" download="gol_${i+1}.mp4">Gol ${i+1} - segundo ${c.segundo}s</a></li>`;
+                })
+                .join("");
+        }
 
         carregarRanking();
     } catch (error) {
@@ -330,6 +361,9 @@ async function carregarRanking() {
         }
 
         const data = await res.json();
+        if (!Array.isArray(data)) {
+            throw new Error("Ranking inválido");
+        }
 
         const lista = document.getElementById("lista-ranking");
         lista.innerHTML = "";

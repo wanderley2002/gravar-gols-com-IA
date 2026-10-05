@@ -1,1 +1,68 @@
+# ============================
+# Dependencias
+# ============================
 node_modules/
+
+# ============================
+# Entornos virtuales (Python)
+# ============================
+.venv/
+.venv-*/
+venv/
+__pycache__/
+*.py[cod]
+
+# ============================
+# Secretos y configuracion local
+# ============================
+.env
+!.env.example
+
+# ============================
+# Base de datos local
+# ============================
+banco.db
+banco.db-*
+
+# ============================
+# Archivos generados / subidos por los usuarios
+# ============================
+uploads/
+projeto/uploads/
+projeto/clips/
+*.mp4
+*.webm
+*.avi
+*.mov
+
+# ============================
+# Artefactos de prueba / modelos
+# ============================
+*.traineddata
+*.pt
+*.onnx
+ffmpeg/
+test.jpg
+test.jpeg
+frame_*.jpg
+frame_*.jpeg
+foto efootbol2.jpeg
+
+# ============================
+# Logs
+# ============================
+*.log
+
+# ============================
+# Cache
+# ============================
+.ruff_cache/
+
+# ============================
+# Testes e arquivos de debug
+# ============================
+_diag_*.py
+_probe_*.bat
+_test_*.py
+_iniciar_test.bat
+projeto/_debug_*.py
